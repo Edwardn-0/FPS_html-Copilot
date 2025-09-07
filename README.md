@@ -1,36 +1,51 @@
+# Block FPS Online
 
-# Block FPS Online v0.9 (Render-Ready)
+**Block FPS Online**은 브라우저에서 실행되는 1인칭 슈팅(FPS) 게임으로, Node.js 기반 WebSocket 서버를 통해 실시간 멀티플레이를 지원합니다. 플레이어는 방을 생성하거나 참가하여 데스매치 또는 점령전 모드에서 경쟁할 수 있습니다.
 
-이 프로젝트는 **클라이언트(브라우저)**와 **Node.js WebSocket 서버**를 단일 웹 서비스로 배포하도록 보강되었습니다.
+## 주요 특징
+- **Three.js 기반 3D FPS 게임**
+- **WebSocket을 통한 실시간 멀티플레이**
+- **방 생성 및 참가 기능**
+- **데스매치 / 점령전 모드 지원**
+- **간단한 룸 설정 (목표 킬 수, 제한 시간 등)**
+- **재장전, 리스폰, 점수판 등 기본 FPS 기능 포함**
+
+## 게임 방법
+1. 게임을 실행하면 닉네임, 캐릭터 색상, 방 이름 등을 설정할 수 있습니다.
+2. `방 만들기` 또는 `방 참가`를 선택합니다.
+3. 방장이 설정을 마치고 `게임 시작`을 누르면 게임이 시작됩니다.
+4. 플레이어는 WASD로 이동하고 마우스로 조준/사격합니다.
+5. 목표 킬 수 또는 제한 시간이 충족되면 게임이 종료됩니다.
+
+## 조작법
+- `W/A/S/D`: 이동
+- 마우스 좌클릭: 사격
+- `R`: 재장전
+- `N`: 맵 리빌드 요청
+- `ESC`: 마우스 포인터 잠금 해제
 
 ## 실행 방법
-
-### 1) 로컬
+### 로컬 실행
 ```bash
 npm install
-# 로컬은 8080 포트로 기동됩니다 (PORT 미설정 시).
 node server.js
-# http://localhost:8080 (WebSocket: ws://localhost:8080/ws)
+# http://localhost:8080 에서 접속
 ```
 
-### 2) Render 배포 (Web Service)
-1. 저장소를 GitHub에 푸시
-2. Render 대시보드 → **New > Web Service**
+### Render 배포
+1. GitHub 저장소에 푸시
+2. Render 대시보드 → New > Web Service
 3. Build Command: `npm install`
 4. Start Command: `node server.js`
-5. (권장) Health Check Path: `/healthz`
-6. (선택) 환경변수
+5. Health Check Path: `/healthz`
+6. 환경변수 설정 (선택)
    - `NODE_ENV=production`
    - `ALLOWED_ORIGINS=https://<서비스>.onrender.com`
 
-> 참고: Render 웹 서비스는 **0.0.0.0 + PORT(기본 10000)** 에 바인드해야 하며, 브라우저는 `wss://<서비스>/ws`로 접속합니다. Health Check를 설정하면 무중단 배포/자동복구에 유리합니다. [Render Web Services](https://render.com/docs/web-services), [Health Checks](https://render.com/docs/health-checks).
+## 기술 스택
+- **클라이언트**: HTML, CSS, JavaScript, Three.js, PointerLockControls
+- **서버**: Node.js, ws (WebSocket)
 
-## 변경 사항 요약
-- `server.js`: Express 정적 서빙 + `/ws` WebSocket (WSS 자동), `/healthz`, ping/pong 하트비트, 오리진 화이트리스트, 페이로드 제한
-- `index.html`: WebSocket 엔드포인트를 동적으로 계산(`window.WS_ENDPOINT`), 로컬/배포 모두 자동 대응
-- `README.md`: 배포 가이드 추가
+## 주의사항
+- 이 서버는 데모용으로 제작되었으며, 실제 서비스에서는 인증, 보안, 데이터 검증 등의 추가 구현이 필요합니다.
 
-## 라이선스
-프로토타입/교육용. 실제 서비스용으로는 인증/권한/보안 강화를 반드시 수행하세요.
-
-참고 문서: [WebSocket API (MDN)](https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API)
