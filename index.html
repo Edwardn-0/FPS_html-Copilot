@@ -1,532 +1,153 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="en">
 <head>
-<script>
-  (function(){
-    window.WS_ENDPOINT = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws';
-  })();
-</script>
-
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Block FPS Online v0.9</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Multiplayer FPS</title>
   <style>
-    html, body { height: 100%; margin: 0; background: #0a0c10; color: #eaecef; font-family: system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, sans-serif; }
-    #app { position: fixed; inset: 0; overflow: hidden; }
-    canvas { display: block; }
-
-    /* ===== Main Menu ===== */
-    #mainMenu { position: fixed; inset: 0; display: grid; place-items: center; background:
-      radial-gradient(1200px 800px at 50% 40%, rgba(40,48,58,0.55), rgba(10,12,16,0.92)); z-index: 60; }
-    .panel { text-align: center; max-width: 920px; width: min(92vw, 920px); padding: 28px 32px; border-radius: 14px; background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.08); box-shadow: 0 10px 30px rgba(0,0,0,0.35); }
-    .title { font-size: 32px; margin: 0 0 4px; letter-spacing: 0.5px; }
-    .subtitle { color: #9aa4af; margin: 0 0 16px; }
-    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 16px; }
-    .field { text-align: left; }
-    label { font-size: 13px; color: #cbd5e1; display:block; margin-bottom: 6px; }
-    input[type=text], input[type=number] { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.05); color: #fff; outline: none; }
-    .swatches { display:flex; gap:8px; flex-wrap: wrap; }
-    .swatch { width: 34px; height: 34px; border-radius: 8px; border:2px solid rgba(255,255,255,0.2); cursor: pointer; box-shadow: inset 0 0 6px rgba(0,0,0,0.4); }
-    .swatch.sel { outline: 3px solid #93c5fd; }
-    .actions { margin-top: 18px; display:flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
-    .btn { padding: 12px 16px; font-size: 16px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.15); color: #fff; cursor: pointer; }
-    .btn.primary { background: #2563eb; }
-    .btn.ghost { background: rgba(255,255,255,0.06); }
-    .hint { margin-top: 10px; color:#9aa4af; font-size: 13px; }
-
-    /* ===== Mode Select / Lobby ===== */
-    #overlay { position: fixed; inset: 0; display: none; place-items: center; background: radial-gradient(1200px 800px at 50% 40%, rgba(40,48,58,0.55), rgba(10,12,16,0.92)); z-index: 50; }
-    .modes { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; }
-    .modebtn { padding: 12px 16px; font-size: 16px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.15); color: #fff; cursor: pointer; }
-    .modebtn.dm { background: #0ea5e9; }
-    .modebtn.dom { background: #a855f7; }
-    .modebtn:hover { filter: brightness(1.07); }
-    #hostSettings { margin-top: 14px; text-align: left; display:none; }
-    #hostSettings .grid { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
-    #hostSettings .card { padding:10px; border:1px solid rgba(255,255,255,0.12); border-radius:10px; background: rgba(255,255,255,0.05); }
-
-    #crosshair { position: fixed; top: 50%; left: 50%; width: 12px; height: 12px; transform: translate(-50%, -50%); pointer-events: none; opacity: .9; z-index: 30; transition: filter .08s ease; }
-    #crosshair::before, #crosshair::after { content: ""; position: absolute; background: #fff; }
-    #crosshair::before { left: 5px; top: 0; width: 2px; height: 12px; }
-    #crosshair::after { top: 5px; left: 0; width: 12px; height: 2px; }
-    #crosshair.flash { filter: drop-shadow(0 0 4px #f87171) saturate(1.4); }
-
-    #fps { position: fixed; right: 16px; top: 12px; background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; padding: 6px 8px; font: 12px/1.2 monospace; color: #9ae6b4; z-index: 30; }
-
-    /* Top HUD (mode + scores) */
-    #topHUD { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); display: grid; grid-auto-flow: column; gap: 10px; align-items: center; z-index: 35; }
-    #modeBadge { padding: 6px 10px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.15); font: 600 12px/1 system-ui; }
-    #modeBadge.dm { background: #052e3b; color: #a5f3fc; }
-    #modeBadge.dom { background: #2b1741; color: #e9d5ff; }
-    #timer { padding: 6px 10px; border-radius: 8px; background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.12); font: 12px/1 monospace; color: #fef9c3; }
-    #scoreDM { padding: 6px 10px; border-radius: 8px; background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.12); font: 12px/1 system-ui; color: #bfdbfe; display:none; }
-    #scoreDOM { padding: 6px 10px; border-radius: 8px; background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.12); font: 12px/1 system-ui; color: #e5e7eb; display:none; }
-
-    /* Ammo / Reload */
-    #ammo { position: fixed; right: 20px; bottom: 20px; font: 600 18px/1.4 system-ui, Segoe UI, sans-serif; color: #ffffff; text-shadow: 0 1px 2px rgba(0,0,0,0.5); z-index: 30; }
-    #ammo .cap { color: #93c5fd; }
-    #reloadMsg { position: fixed; right: 20px; bottom: 56px; color: #fbbf24; font: 14px/1.2 system-ui, Segoe UI; display:none; z-index: 30; }
-
-    /* Muzzle flash */
-    #muzzle { position: fixed; left: 70%; bottom: 26%; width: 64px; height: 64px; pointer-events:none; display:none; mix-blend-mode: screen; z-index: 20; }
-
-    /* Health bar */
-    #health { position: fixed; left: 20px; bottom: 96px; width: 220px; height: 18px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 9px; overflow: hidden; z-index: 30; }
-    #health .fill { height: 100%; width: 100%; background: linear-gradient(90deg, #10b981, #22c55e); box-shadow: inset 0 0 10px rgba(0,0,0,0.3); transition: width .15s ease, background .2s ease; }
-    #health .label { position: absolute; left: 0; top: 0; width: 100%; height: 100%; font: 12px/18px system-ui, Segoe UI, sans-serif; color: #eaf2ee; text-align: center; text-shadow: 0 1px 1px rgba(0,0,0,0.6); pointer-events: none; }
-
-    /* Hit feedback vignette */
-    #hitVignette { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(60% 60% at 50% 50%, rgba(255,0,0,0.25), rgba(255,0,0,0.0) 60%), linear-gradient(rgba(120,0,0,0.25), rgba(120,0,0,0)); opacity: 0; transition: opacity 180ms ease; z-index: 40; }
-    #hitVignette.active { opacity: 0.75; }
-
-    /* Domination capture UI */
-    #caps { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); display:none; gap: 10px; z-index: 35; }
-    .capBox { width: 160px; height: 14px; border-radius: 7px; border:1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.06); position: relative; overflow: hidden; }
-    .capFill { position:absolute; left:0; top:0; bottom:0; width:50%; background: linear-gradient(90deg,#38bdf8,#0ea5e9); transition: width .2s ease; }
-    .capLbl  { position:absolute; inset:0; display:grid; place-items:center; font: 11px/1 system-ui; color:#e5e7eb; text-shadow:0 1px 1px rgba(0,0,0,.6); }
-
-    .hud { position: fixed; left: 20px; bottom: 20px; background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; padding: 10px 12px; backdrop-filter: blur(4px); user-select: none; font-size: 14px; line-height: 1.5; z-index: 30; }
-    .hud kbd { background: #1f2937; color: #fff; border-radius: 4px; padding: 2px 6px; margin: 0 2px; font-size: 12px; border: 1px solid rgba(255,255,255,0.1); }
-    .hud .dim { color: #9aa4af; }
+    body, html { margin:0; padding:0; overflow:hidden; background:#000; font-family:sans-serif; }
+    #overlay, #mainMenu, #topHUD, #ammo, #health, #caps { position:absolute; z-index:10; }
+    #mainMenu { top:50%; left:50%; transform:translate(-50%,-50%); background:#111; padding:20px; border-radius:8px; color:#fff; }
+    #overlay { display:none; top:10px; left:10px; color:#fff; }
+    #topHUD { top:10px; right:10px; color:#fff; }
+    #ammo, #health { bottom:10px; left:10px; color:#fff; }
+    #caps { bottom:10px; right:10px; color:#fff; }
   </style>
-
-  <!-- Import map + shim -->
-  <script async src="https://unpkg.com/es-module-shims@1.10.0/dist/es-module-shims.js"></script>
-  <script type="importmap">
-  { "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
-  }}
-  </script>
 </head>
 <body>
-  <div id="app"></div>
-
-  <!-- ===== MAIN MENU ===== -->
   <div id="mainMenu">
-    <div class="panel">
-      <h1 class="title">Block FPS Online</h1>
-      <p class="subtitle">이름/컬러를 설정하고 <b>방을 만들거나</b> <b>참여</b>하세요.</p>
-      <div class="row">
-        <div class="field">
-          <label for="playerName">플레이어 이름</label>
-          <input id="playerName" type="text" maxlength="16" placeholder="이름" />
-        </div>
-        <div class="field">
-          <label>캐릭터 컬러(총기/액센트)</label>
-          <div class="swatches" id="swatches"></div>
-        </div>
-      </div>
-      <div class="row">
-        <div class="field">
-          <label for="roomName">방 이름</label>
-          <input id="roomName" type="text" maxlength="20" placeholder="예: 연습방" />
-        </div>
-        <div class="field">
-          <label for="roomCode">방 코드</label>
-          <input id="roomCode" type="text" maxlength="6" placeholder="ABC123" />
-        </div>
-      </div>
-      <div class="actions">
-        <button class="btn ghost" id="randomize">랜덤 설정</button>
-        <button class="btn primary" id="createRoom">방 만들기(호스트)</button>
-        <button class="btn" id="joinRoom">방 참여</button>
-      </div>
-      <div class="hint">* 서버 기본 주소: <code id="serverUrlHint"></code> (코드 내에서 변경 가능)</div>
-    </div>
+    <h2>Join or Create Room</h2>
+    <input id="playerName" placeholder="Name"><br>
+    <button id="createRoom">Create Room</button>
+    <button id="joinRoom">Join Room</button>
   </div>
-
-  <!-- ===== MODE/LOBBY OVERLAY ===== -->
   <div id="overlay">
-    <div class="panel">
-      <h2 style="margin:0 0 8px">로비</h2>
-      <p class="subtitle" id="lobbyInfo"></p>
-      <div class="modes">
-        <button class="modebtn dm" id="btnDM">데스매치</button>
-        <button class="modebtn dom" id="btnDOM">거점점령</button>
-      </div>
-      <div id="hostSettings">
-        <h3 style="margin:12px 0 6px">방장 설정(승리 조건)</h3>
-        <div class="grid">
-          <div class="card">
-            <b>데스매치</b>
-            <div class="row" style="grid-template-columns:1fr 1fr">
-              <div class="field"><label>Kills 목표</label><input id="dmKills" type="number" min="1" max="200" value="20" /></div>
-              <div class="field"><label>시간(분)</label><input id="dmMinutes" type="number" min="1" max="60" value="10" /></div>
-            </div>
-          </div>
-          <div class="card">
-            <b>거점점령</b>
-            <div class="row" style="grid-template-columns:1fr 1fr">
-              <div class="field"><label>점수 목표</label><input id="domScore" type="number" min="10" max="1000" value="150" /></div>
-              <div class="field"><label>시간(분)</label><input id="domMinutes" type="number" min="1" max="60" value="10" /></div>
-            </div>
-          </div>
-        </div>
-        <div class="actions">
-          <button class="btn ghost" id="saveSettings">설정 저장</button>
-          <button class="btn primary" id="startMatch">매치 시작</button>
-        </div>
-      </div>
-      <div class="actions">
-        <button class="btn" id="copyInvite">초대코드 복사</button>
-        <button class="btn" id="leaveLobby">로비 나가기</button>
-      </div>
-    </div>
+    <h3>Lobby</h3>
+    <button id="startGame">Start Game</button>
   </div>
-
-  <!-- Screen-space effects -->
-  <div id="hitVignette" aria-hidden="true"></div>
-
-  <img id="muzzle" alt="muzzle" />
-  <div id="crosshair" hidden></div>
-  <div id="fps" hidden>FPS: 0</div>
-
-  <!-- Top HUD -->
-  <div id="topHUD" hidden>
-    <div id="modeBadge" class="dm">DEATHMATCH</div>
-    <div id="timer">10:00</div>
-    <div id="scoreDM">Kills: <span id="kills">0</span></div>
-    <div id="scoreDOM">BLUE <span id="scoreBlue">0</span> : <span id="scoreRed">0</span> RED</div>
-  </div>
-
-  <div id="ammo"><span class="cap" id="ammoCap">0</span> / <span id="ammoRes">0</span></div>
-  <div id="reloadMsg">R: 재장전</div>
-
-  <!-- Health Bar -->
-  <div id="health" aria-label="Health">
-    <div class="fill" id="healthFill"></div>
-    <div class="label" id="healthText">100 / 100</div>
-  </div>
-
-  <!-- Domination capture UI -->
+  <div id="topHUD">Kills: <span id="kills">0</span></div>
+  <div id="ammo">Ammo: <span id="ammoCount">30</span></div>
+  <div id="health">HP: <span id="hp">100</span></div>
   <div id="caps">
-    <div class="capBox"><div class="capFill" id="capA"></div><div class="capLbl">A</div></div>
-    <div class="capBox"><div class="capFill" id="capB"></div><div class="capLbl">B</div></div>
-    <div class="capBox"><div class="capFill" id="capC"></div><div class="capLbl">C</div></div>
+    <div>A: <div id="capAFill">0%</div></div>
+    <div>B: <div id="capBFill">0%</div></div>
+    <div>C: <div id="capCFill">0%</div></div>
   </div>
 
-  <div class="hud" id="help" hidden>
-    <div>
-      <kbd>W</kbd>/<kbd>S</kbd> (앞/뒤) · <kbd>A</kbd>/<kbd>D</kbd> (좌/우) · <b>마우스 좌클릭</b> 발사 · <kbd>R</kbd> 재장전
-    </div>
-    <div>
-      <kbd>N</kbd> 맵 재생성(모드 유지) · <kbd>H</kbd> 도움말 · <kbd>F</kbd> FOV · <span class="dim">ESC로 포인터 락 해제</span>
-    </div>
-  </div>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
+  <script>
+    const SERVER_URL = "wss://your-server-here.onrender.com"; // Render 배포용 WebSocket 주소
+    let socket;
+    let scene, camera, renderer;
+    let ground, captureGroup;
+    let world = {};
+    let worldSizeX, worldSizeZ;
 
-  <script type="module">
-    import * as THREE from 'three';
-    import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+    init();
 
-    // ====== BASIC RENDER SETUP ======
-    const appEl = document.getElementById('app');
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    appEl.appendChild(renderer.domElement);
+    function init(){
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+      renderer = new THREE.WebGLRenderer({ antialias:true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
 
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0a0c10);
-    const camera = new THREE.PerspectiveCamera(90, window.innerWidth / window.innerHeight, 0.1, 2000);
+      const light = new THREE.DirectionalLight(0xffffff, 1);
+      light.position.set(10,10,10);
+      scene.add(light);
 
-    // Lights
-    scene.add(new THREE.HemisphereLight(0xc0d8ff, 0x23231f, 0.7));
-    const dir = new THREE.DirectionalLight(0xffffff, 0.85);
-    dir.position.set(30, 60, 35); dir.castShadow = true; dir.shadow.mapSize.set(2048, 2048); dir.shadow.camera.near = 0.5; dir.shadow.camera.far = 400; scene.add(dir);
+      ground = new THREE.Mesh(new THREE.PlaneGeometry(100,100), new THREE.MeshStandardMaterial({ color:0x333333 }));
+      ground.rotation.x = -Math.PI/2;
+      scene.add(ground);
 
-    // Sky
-    const skyGeo = new THREE.SphereGeometry(1000, 32, 16);
-    const skyMat = new THREE.ShaderMaterial({ side: THREE.BackSide,
-      uniforms: { topColor:{value:new THREE.Color(0x2a3443)}, bottomColor:{value:new THREE.Color(0x0a0c10)} },
-      vertexShader:`varying vec3 vWorldPosition; void main(){ vec4 p = modelMatrix*vec4(position,1.0); vWorldPosition=p.xyz; gl_Position=projectionMatrix*viewMatrix*p; }`,
-      fragmentShader:`varying vec3 vWorldPosition; uniform vec3 topColor; uniform vec3 bottomColor; void main(){ float h=normalize(vWorldPosition).y*0.5+0.5; gl_FragColor=vec4(mix(bottomColor, topColor, smoothstep(0.0,1.0,h)),1.0);} `});
-    scene.add(new THREE.Mesh(skyGeo, skyMat));
+      captureGroup = new THREE.Group();
+      scene.add(captureGroup);
 
-    // World params
-    const world = { cols: 16, rows: 16, cell: 6, wallT: 0.6, wallH: 3.0, playerRadius: 0.45 };
-    let worldSizeX = world.cols * world.cell; let worldSizeZ = world.rows * world.cell;
-
-    // Ground
-    function makeChecker(size=1024, cells=64, c1='#2b3340', c2='#202632'){
-      const c=document.createElement('canvas'); c.width=c.height=size; const g=c.getContext('2d'); const step=size/cells;
-      for(let y=0;y<cells;y++) for(let x=0;x<cells;x++){ g.fillStyle=(x+y)%2?c1:c2; g.fillRect(x*step,y*step,step,step); }
-      const tex=new THREE.CanvasTexture(c); tex.colorSpace=THREE.SRGBColorSpace; tex.wrapS=tex.wrapT=THREE.RepeatWrapping; tex.anisotropy=8; return tex;
+      camera.position.set(0,10,20);
+      animate();
     }
-    let ground = new THREE.Mesh(new THREE.PlaneGeometry(worldSizeX+20, worldSizeZ+20), new THREE.MeshStandardMaterial({ map: makeChecker(1024,64), roughness:1 }));
-    ground.rotation.x = -Math.PI/2; ground.receiveShadow=true; scene.add(ground);
 
-    // Controls
-    const controls = new PointerLockControls(camera, renderer.domElement);
-    scene.add(controls.getObject());
+    function animate(){
+      requestAnimationFrame(animate);
+      renderer.render(scene, camera);
+    }
 
-    // ====== UI REFS ======
-    const mainMenu = document.getElementById('mainMenu');
-    const overlay = document.getElementById('overlay');
+    function makeChecker(size, squares, c1, c2){
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      const step = size / squares;
+      for(let y=0;y<squares;y++){
+        for(let x=0;x<squares;x++){
+          ctx.fillStyle = (x+y)%2===0 ? c1 : c2;
+          ctx.fillRect(x*step,y*step,step,step);
+        }
+      }
+      return new THREE.CanvasTexture(canvas);
+    }
 
-    const btnDM = document.getElementById('btnDM');
-    const btnDOM = document.getElementById('btnDOM');
-    const lobbyInfo = document.getElementById('lobbyInfo');
-    const hostSettings = document.getElementById('hostSettings');
+    function carveMaze(cols, rows){
+      // 간단한 더미 맵 생성 (전부 빈칸)
+      return Array(rows).fill().map(()=>Array(cols).fill(0));
+    }
 
-    const dmKillsEl = document.getElementById('dmKills');
-    const dmMinutesEl = document.getElementById('dmMinutes');
-    const domScoreEl = document.getElementById('domScore');
-    const domMinutesEl = document.getElementById('domMinutes');
-    const saveSettingsBtn = document.getElementById('saveSettings');
-    const startMatchBtn = document.getElementById('startMatch');
-
-    const copyInviteBtn = document.getElementById('copyInvite');
-    const leaveLobbyBtn = document.getElementById('leaveLobby');
-
-    const crosshair = document.getElementById('crosshair');
-    const helpEl = document.getElementById('help');
-    const fpsEl = document.getElementById('fps');
-    const ammoCapEl = document.getElementById('ammoCap');
-    const ammoResEl = document.getElementById('ammoRes');
-    const reloadMsgEl = document.getElementById('reloadMsg');
-    const muzzleEl = document.getElementById('muzzle');
-
-    const healthFill = document.getElementById('healthFill');
-    const healthText = document.getElementById('healthText');
-    const hitVignette = document.getElementById('hitVignette');
-
-    const topHUD = document.getElementById('topHUD');
-    const modeBadge = document.getElementById('modeBadge');
-    const timerEl = document.getElementById('timer');
-    const scoreDMEl = document.getElementById('scoreDM');
-    const killsEl = document.getElementById('kills');
-    const scoreDOMEl = document.getElementById('scoreDOM');
-    const scoreBlueEl = document.getElementById('scoreBlue');
-    const scoreRedEl = document.getElementById('scoreRed');
-
-    const capsUI = document.getElementById('caps');
-    const capAFill = document.getElementById('capA');
-    const capBFill = document.getElementById('capB');
-    const capCFill = document.getElementById('capC');
-
-    // Main menu controls
-    const swatchesEl = document.getElementById('swatches');
-    const playerNameEl = document.getElementById('playerName');
-    const roomNameEl = document.getElementById('roomName');
-    const roomCodeEl = document.getElementById('roomCode');
-    const randomizeBtn = document.getElementById('randomize');
-    const createRoomBtn = document.getElementById('createRoom');
-    const joinRoomBtn = document.getElementById('joinRoom');
-    const serverUrlHint = document.getElementById('serverUrlHint');
-
-    const presetColors = ['#60a5fa','#22c55e','#f59e0b','#ef4444','#a855f7','#f472b6','#14b8a6','#eab308','#94a3b8'];
-    let profile = { name:'Player', color:'#60a5fa', roomName:'연습방', roomCode:'', clientId:'', team:'blue' };
-
-    // ====== ONLINE (WS) ======
-    const SERVER_URL = (location.protocol==='https:'? 'wss://' : 'ws://') + (location.hostname||'localhost') + ':8080';
-    serverUrlHint.textContent = SERVER_URL;
-    let ws = null; let room = { code:'', name:'', mode:'dm', host:false, settings:{ dm:{kills:20, minutes:10}, dom:{score:150, minutes:10} } };
-
-    function connect(){ return new Promise((resolve,reject)=>{ try {
-      ws = new WebSocket(SERVER_URL);
-      ws.onopen = ()=> resolve();
-      ws.onerror = (e)=> reject(e);
-      ws.onmessage = (ev)=> handleServer(JSON.parse(ev.data));
-      ws.onclose = ()=> console.log('WS closed');
-    } catch(err){ reject(err); } }); }
-
-    function send(msg){ try{ ws && ws.readyState===1 && ws.send(JSON.stringify(msg)); }catch(e){} }
-
-    function handleServer(m){
-      switch(m.type){
-        case 'roomCreated': room.host=true; room.code=m.code; room.name=m.name; profile.clientId=m.clientId; onEnterLobby(); break;
-        case 'roomJoined': room.host=false; room.code=m.code; room.name=m.name; profile.clientId=m.clientId; room.mode=m.mode; room.settings=m.settings; onEnterLobby(); break;
-        case 'settings': room.settings=m.settings; syncLobbySettings(); break;
-        case 'mode': room.mode=m.mode; updateModeBadge(); break;
-        case 'lobby': lobbyInfo.textContent = m.text; break;
-        case 'start': startMatchClient(m); break;
-        case 'state': applyState(m); break;
-        case 'hit': applyHit(m); break;
-        case 'victory': onVictory(m); break;
+    function buildWallsFromCells(cells, mat){
+      for(let z=0; z<cells.length; z++){
+        for(let x=0; x<cells[z].length; x++){
+          if(cells[z][x]===1){
+            const wall = new THREE.Mesh(new THREE.BoxGeometry(6,6,6), mat);
+            wall.position.set(x*6 - worldSizeX/2, 3, z*6 - worldSizeZ/2);
+            scene.add(wall);
+          }
+        }
       }
     }
 
-    function onEnterLobby(){
-      mainMenu.style.display='none'; overlay.style.display='grid';
-      lobbyInfo.textContent = `방 이름: ${room.name} · 코드: ${room.code} · 플레이어: ${profile.name}${room.host?' (방장)':''}`;
-      hostSettings.style.display = room.host ? 'block' : 'none';
-      syncLobbySettings(); updateModeBadge();
-    }
+    function buildMapDOM(){
+      world.cols=20;
+      world.rows=14;
+      world.cell=6;
+      worldSizeX=world.cols*world.cell;
+      worldSizeZ=world.rows*world.cell;
+      ground.material.map=makeChecker(1024,64,'#243c5a','#132a44');
+      ground.material.needsUpdate=true;
+      ground.geometry.dispose();
+      ground.geometry=new THREE.PlaneGeometry(worldSizeX+20, worldSizeZ+20);
 
-    function syncLobbySettings(){ dmKillsEl.value=room.settings.dm.kills; dmMinutesEl.value=room.settings.dm.minutes; domScoreEl.value=room.settings.dom.score; domMinutesEl.value=room.settings.dom.minutes; }
-    function updateModeBadge(){ modeBadge.textContent = (room.mode==='dm'?'DEATHMATCH':'DOMINATION'); modeBadge.className=''; modeBadge.classList.add(room.mode==='dm'?'dm':'dom'); scoreDMEl.style.display = room.mode==='dm'?'inline-block':'none'; scoreDOMEl.style.display = room.mode==='dom'?'inline-block':'none'; capsUI.style.display = room.mode==='dom'?'flex':'none'; }
+      const cells=carveMaze(world.cols,world.rows);
+      buildWallsFromCells(cells, new THREE.MeshStandardMaterial({ color:0x9aa4b2, roughness:0.95 }));
 
-    // ====== LOCAL STATE ======
-    const colliders = []; function pushCollider(x,z,sx,sz){ colliders.push({ aabb:[x-sx/2,x+sx/2,z-sz/2,z+sz/2]}); }
-    function isFreeXZ(x,z,r){ for(const c of colliders){ const [minX,maxX,minZ,maxZ]=c.aabb; if(x>minX-r&&x<maxX+r&&z>minZ-r&&z<maxZ+r) return false;} return true; }
-    const mapGroup = new THREE.Group(); scene.add(mapGroup);
-    const captureGroup = new THREE.Group(); scene.add(captureGroup);
-    const playersGroup = new THREE.Group(); scene.add(playersGroup); // other players
+      captureGroup.clear();
+      function addCapturePoint(x, z, label){
+        const geo = new THREE.CylinderGeometry(2, 2, 0.4, 24);
+        const mat = new THREE.MeshStandardMaterial({ color:0x38bdf8, transparent:true, opacity:0.5 });
+        const cap = new THREE.Mesh(geo, mat);
+        cap.position.set(x, 0.2, z);
+        captureGroup.add(cap);
 
-    const local = { hp:100, maxHP:100, kb:new THREE.Vector3(0,0,0), stun:0, kills:0, ready:false };
-    const keys = { w:false,a:false,s:false,d:false, shift:false, space:false, mouse:false };
+        const canvas = document.createElement('canvas');
+        canvas.width = canvas.height = 64;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 40px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, 32, 32);
+        const tex = new THREE.CanvasTexture(canvas);
 
-    // remote players map
-    const remotes = new Map(); // id -> {mesh, name, color}
-
-    // ====== MAIN MENU ======
-    function makeRoomCode(){ const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s=''; for(let i=0;i<6;i++) s+=chars[Math.floor(Math.random()*chars.length)]; return s; }
-    function renderSwatches(sel){ swatchesEl.innerHTML=''; presetColors.forEach(c=>{ const d=document.createElement('div'); d.className='swatch'+(c===sel?' sel':''); d.style.background=c; d.title=c; d.onclick=()=>{ profile.color=c; renderSwatches(c); saveProfile(); }; swatchesEl.appendChild(d); }); }
-    function loadProfile(){ try{ const s=localStorage.getItem('fps_profile'); if(s){ profile = {...profile, ...JSON.parse(s)}; }}catch(e){} playerNameEl.value=profile.name||'Player'; roomNameEl.value=profile.roomName||'연습방'; roomCodeEl.value=profile.roomCode||makeRoomCode(); renderSwatches(profile.color); }
-    function saveProfile(){ profile.name = playerNameEl.value.trim()||'Player'; profile.roomName = roomNameEl.value.trim()||'연습방'; profile.roomCode = roomCodeEl.value.trim().toUpperCase()||makeRoomCode(); localStorage.setItem('fps_profile', JSON.stringify(profile)); }
-    randomizeBtn.onclick = ()=>{ playerNameEl.value='Player'+Math.floor(10+Math.random()*89); profile.color=presetColors[Math.floor(Math.random()*presetColors.length)]; roomCodeEl.value=makeRoomCode(); renderSwatches(profile.color); saveProfile(); };
-    createRoomBtn.onclick = async()=>{ saveProfile(); try{ await connect(); send({type:'createRoom', code:profile.roomCode, name:profile.roomName, player:{name:profile.name, color:profile.color}});}catch(err){ alert('서버 연결 실패: '+err); }};
-    joinRoomBtn.onclick = async()=>{ saveProfile(); try{ await connect(); send({type:'joinRoom', code:profile.roomCode, player:{name:profile.name, color:profile.color}});}catch(err){ alert('서버 연결 실패: '+err); }};
-    loadProfile();
-
-    // Copy/Leave
-    copyInviteBtn.onclick = ()=>{ navigator.clipboard.writeText(room.code).then(()=>{ copyInviteBtn.textContent='복사됨!'; setTimeout(()=> copyInviteBtn.textContent='초대코드 복사',1200); }); };
-    leaveLobbyBtn.onclick = ()=>{ try{ ws&&ws.close(); }catch(e){} location.reload(); };
-
-    // Mode buttons and settings
-    btnDM.onclick = ()=>{ if(room.host){ send({type:'setMode', code:room.code, mode:'dm'}); } };
-    btnDOM.onclick = ()=>{ if(room.host){ send({type:'setMode', code:room.code, mode:'dom'}); } };
-    saveSettingsBtn.onclick = ()=>{ if(!room.host) return; room.settings.dm.kills = parseInt(dmKillsEl.value||20); room.settings.dm.minutes=parseInt(dmMinutesEl.value||10); room.settings.dom.score=parseInt(domScoreEl.value||150); room.settings.dom.minutes=parseInt(domMinutesEl.value||10); send({type:'setSettings', code:room.code, settings:room.settings}); };
-    startMatchBtn.onclick = ()=>{ if(!room.host) return; send({type:'startGame', code:room.code}); };
-
-    // ====== AUDIO ======
-    let audioCtx=null; function getAudio(){ if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)(); return audioCtx; }
-    function ensureAudio(){ try{ getAudio().resume(); }catch(e){} }
-    function playHitSound(intensity=1){ const ctx=getAudio(); const now=ctx.currentTime; const master=ctx.createGain(); master.gain.value=0.8; master.connect(ctx.destination); const dur=0.08+0.06*intensity; const buffer=ctx.createBuffer(1, Math.floor(ctx.sampleRate*dur), ctx.sampleRate); const data=buffer.getChannelData(0); for(let i=0;i<data.length;i++){ const t=i/ctx.sampleRate; data[i]=(Math.random()*2-1)*Math.exp(-18*t);} const noise=ctx.createBufferSource(); noise.buffer=buffer; const bp=ctx.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=800; bp.Q.value=0.6; const nGain=ctx.createGain(); nGain.gain.setValueAtTime(0.9, now); nGain.gain.exponentialRampToValueAtTime(0.001, now+dur); noise.connect(bp); bp.connect(nGain); nGain.connect(master); const osc=ctx.createOscillator(); osc.type='sine'; osc.frequency.setValueAtTime(140, now); const oGain=ctx.createGain(); oGain.gain.setValueAtTime(0.55*intensity, now); oGain.gain.exponentialRampToValueAtTime(0.001, now+0.22); osc.connect(oGain); oGain.connect(master); noise.start(now); noise.stop(now+dur); osc.start(now); osc.stop(now+0.24); }
-    function playHeadshotSound(){ const ctx=getAudio(); const now=ctx.currentTime; const osc=ctx.createOscillator(); osc.type='triangle'; osc.frequency.setValueAtTime(1600, now); osc.frequency.exponentialRampToValueAtTime(800, now+0.12); const g=ctx.createGain(); g.gain.setValueAtTime(0.7, now); g.gain.exponentialRampToValueAtTime(0.001, now+0.15); osc.connect(g); g.connect(ctx.destination); osc.start(now); osc.stop(now+0.16); }
-    function playGunShot(){ const ctx=getAudio(); const now=ctx.currentTime; const master=ctx.createGain(); master.gain.value=0.9; master.connect(ctx.destination); const click=ctx.createOscillator(); click.type='square'; click.frequency.setValueAtTime(1800, now); const cGain=ctx.createGain(); cGain.gain.setValueAtTime(0.4, now); cGain.gain.exponentialRampToValueAtTime(0.001, now+0.02); click.connect(cGain); cGain.connect(master); const dur=0.12; const buffer=ctx.createBuffer(1, Math.floor(ctx.sampleRate*dur), ctx.sampleRate); const data=buffer.getChannelData(0); for(let i=0;i<data.length;i++){ const t=i/ctx.sampleRate; data[i]=(Math.random()*2-1)*Math.exp(-22*t);} const src=ctx.createBufferSource(); src.buffer=buffer; const bp=ctx.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=1800; bp.Q.value=0.9; const nGain=ctx.createGain(); nGain.gain.setValueAtTime(0.8, now); nGain.gain.exponentialRampToValueAtTime(0.001, now+0.12); src.connect(bp); bp.connect(nGain); nGain.connect(master); const tail=ctx.createOscillator(); tail.type='sawtooth'; tail.frequency.setValueAtTime(90, now); tail.frequency.exponentialRampToValueAtTime(60, now+0.18); const tGain=ctx.createGain(); tGain.gain.setValueAtTime(0.35, now); tGain.gain.exponentialRampToValueAtTime(0.001, now+0.2); tail.connect(tGain); tGain.connect(master); click.start(now); click.stop(now+0.03); src.start(now); src.stop(now+0.12); tail.start(now); tail.stop(now+0.2); }
-    function playReloadStart(){ const ctx=getAudio(); const now=ctx.currentTime; const osc=ctx.createOscillator(); osc.type='square'; osc.frequency.setValueAtTime(320, now); const g=ctx.createGain(); g.gain.setValueAtTime(0.45, now); g.gain.exponentialRampToValueAtTime(0.001, now+0.12); osc.connect(g); g.connect(ctx.destination); osc.start(now); osc.stop(now+0.12); }
-    function playReloadEnd(){ const ctx=getAudio(); const now=ctx.currentTime; const noise=ctx.createBufferSource(); const dur=0.1; const buffer=ctx.createBuffer(1, Math.floor(ctx.sampleRate*dur), ctx.sampleRate); const data=buffer.getChannelData(0); for(let i=0;i<data.length;i++){ const t=i/ctx.sampleRate; data[i]=(Math.random()*2-1)*Math.exp(-28*t);} noise.buffer=buffer; const lp=ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=900; const g=ctx.createGain(); g.gain.setValueAtTime(0.6, now); g.gain.exponentialRampToValueAtTime(0.001, now+0.12); noise.connect(lp); lp.connect(g); g.connect(ctx.destination); noise.start(now); noise.stop(now+0.12); }
-
-    // ====== BUILD MAP (NO BOTS) ======
-    function clearMap(){ while(mapGroup.children.length){ const m=mapGroup.children.pop(); m.geometry?.dispose?.(); m.material?.dispose?.(); } while(captureGroup.children.length){ const c=captureGroup.children.pop(); c.geometry?.dispose?.(); c.material?.dispose?.(); } colliders.length=0; }
-    function carveMaze(cols, rows){ const M=new Array(rows); for(let r=0;r<rows;r++){ M[r]=new Array(cols); for(let c=0;c<cols;c++){ M[r][c]={v:false,N:true,E:true,S:true,W:true}; } } const st=[[0,0]]; M[0][0].v=true; function neigh(r,c){ const ns=[]; if(r>0&&!M[r-1][c].v)ns.push([r-1,c,'N']); if(c<cols-1&&!M[r][c+1].v)ns.push([r,c+1,'E']); if(r<rows-1&&!M[r+1][c].v)ns.push([r+1,c,'S']); if(c>0&&!M[r][c-1].v)ns.push([r,c-1,'W']); return ns; } while(st.length){ const [r,c]=st[st.length-1]; const ns=neigh(r,c); if(!ns.length){ st.pop(); continue;} const [nr,nc,d]=ns[Math.floor(Math.random()*ns.length)]; if(d==='N'){M[r][c].N=false;M[nr][nc].S=false;} if(d==='E'){M[r][c].E=false;M[nr][nc].W=false;} if(d==='S'){M[r][c].S=false;M[nr][nc].N=false;} if(d==='W'){M[r][c].W=false;M[nr][nc].E=false;} M[nr][nc].v=true; st.push([nr,nc]); } const openProb=0.22; for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){ if(Math.random()<openProb && r<rows-1){ M[r][c].S=false; M[r+1][c].N=false; } if(Math.random()<openProb && c<cols-1){ M[r][c].E=false; M[r][c+1].W=false; } } return M; }
-    function buildWallsFromCells(cells, wallMat){ const h=world.wallH,t=world.wallT,s=world.cell; const ox=-worldSizeX/2, oz=-worldSizeZ/2; const perim=[[0,-s/2,world.cols*s,t],[0,world.rows*s - s/2, world.cols*s,t],[-s/2,0,t,world.rows*s],[world.cols*s - s/2,0,t,world.rows*s]]; for(const [gx,gz,sx,sz] of perim){ const x=ox+gx+sx/2; const z=oz+gz+sz/2; const m=new THREE.Mesh(new THREE.BoxGeometry(sx,h,sz), wallMat); m.position.set(x,h/2,z); m.castShadow=m.receiveShadow=true; mapGroup.add(m); pushCollider(x,z,sx,sz);} for(let r=0;r<world.rows;r++) for(let c=0;c<world.cols;c++){ const cx=ox+c*s+s/2; const cz=oz+r*s+s/2; const cell=cells[r][c]; if(cell.E){ const x=cx+s/2, z=cz, sx=t, sz=s; const m=new THREE.Mesh(new THREE.BoxGeometry(sx,h,sz), wallMat); m.position.set(x,h/2,z); m.castShadow=m.receiveShadow=true; mapGroup.add(m); pushCollider(x,z,sx,sz);} if(cell.S){ const x=cx, z=cz+s/2, sx=s, sz=t; const m=new THREE.Mesh(new THREE.BoxGeometry(sx,h,sz), wallMat); m.position.set(x,h/2,z); m.castShadow=m.receiveShadow=true; mapGroup.add(m); pushCollider(x,z,sx,sz);} } }
-
-    function buildMapDM(){ world.cols=16; world.rows=16; world.cell=6; worldSizeX=world.cols*world.cell; worldSizeZ=world.rows*world.cell; ground.material.map=makeChecker(1024,64,'#28303a','#1c232e'); ground.material.needsUpdate=true; ground.geometry.dispose(); ground.geometry=new THREE.PlaneGeometry(worldSizeX+20, worldSizeZ+20); const cells=carveMaze(world.cols,world.rows); buildWallsFromCells(cells, new THREE.MeshStandardMaterial({ color:0x9aa4b2, roughness:0.95 })); }
-    function buildMapDOM(){ world.cols=20; world.rows=14; world.cell=6; worldSizeX=world.cols*world.cell; worldSizeZ=world.rows*world.cell; ground.material.map=makeChecker(1024,64,'#243c5a','#132a44'); ground.material.needsUpdate=true; ground.geometry.dispose(); ground.geometry=new THREE.PlaneGeometry(worldSizeX+20, worldSizeZ+20); const cells=carveMaze(world.cols,world.rows); buildWallsFromCells(cells, new THREE.MeshStandardMaterial({ color:0x8795a1, roughness:0.95 })); // capture rings from server state later
-    }
-
-    // ====== PLAYER & REMOTES ======
-    function createBlockCharacter(color='#3b82f6'){ const g=new THREE.Group(); const col=new THREE.Color(color); const head=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.5,0.5), new THREE.MeshStandardMaterial({ color:0xffd7a8, roughness:0.8 })); head.position.set(0,1.6,0); const body=new THREE.Mesh(new THREE.BoxGeometry(0.7,1.0,0.35), new THREE.MeshStandardMaterial({ color: col, roughness:0.6 })); body.position.set(0,1.0,0); const legs=new THREE.Mesh(new THREE.BoxGeometry(0.7,0.9,0.35), new THREE.MeshStandardMaterial({ color: col.clone().multiplyScalar(0.7), roughness:0.9 })); legs.position.set(0,0.45,0); g.add(head,body,legs); return g; }
-
-    const localGun = new THREE.Group();
-    const gunBodyMat = new THREE.MeshStandardMaterial({ color: 0x222831, metalness: 0.4, roughness: 0.6 });
-    const gunBody = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.12, 0.5), gunBodyMat); gunBody.position.set(0,-0.08,-0.2);
-    const gunBarrel = new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,0.35,12), new THREE.MeshStandardMaterial({ color:0x444, metalness:0.8, roughness:0.3 })); gunBarrel.rotation.z=Math.PI/2; gunBarrel.position.set(0.15,-0.06,-0.35);
-    localGun.add(gunBody); localGun.add(gunBarrel); camera.add(localGun); localGun.position.set(0.28,-0.18,-0.5);
-
-    function applyProfileColor(){ try{ gunBodyMat.color = new THREE.Color(profile.color);}catch(e){} }
-
-    // ====== INPUT / SAFETY GUARDS ======
-    function resetInputState(){ keys.w=keys.a=keys.s=keys.d=keys.shift=keys.space=keys.mouse=false; local.kb.set(0,0,0); local.stun=0; velY=0; canJump=true; }
-
-    document.addEventListener('keydown', (e)=>{
-      switch(e.code){ case 'KeyW': keys.w=true; break; case 'KeyA': keys.a=true; break; case 'KeyS': keys.s=true; break; case 'KeyD': keys.d=true; break; case 'ShiftLeft': case 'ShiftRight': keys.shift=true; break; case 'Space': if(canJump){ velY=6.5; canJump=false;} keys.space=true; break; case 'KeyN': if(controls.isLocked){ send({type:'requestRebuild', code:room.code}); } break; case 'KeyH': helpEl.hidden=!helpEl.hidden; break; case 'KeyF': camera.fov=(camera.fov<100?110:90); camera.updateProjectionMatrix(); break; case 'KeyR': tryReload(); break; }
-    });
-    document.addEventListener('keyup', (e)=>{
-      switch(e.code){ case 'KeyW': keys.w=false; break; case 'KeyA': keys.a=false; break; case 'KeyS': keys.s=false; break; case 'KeyD': keys.d=false; break; case 'ShiftLeft': case 'ShiftRight': keys.shift=false; break; case 'Space': keys.space=false; break; }
-    });
-
-    // IMPORTANT: Do not fire when not in pointer lock or when UI visible
-    document.addEventListener('mousedown', (e)=>{ if(e.button!==0) return; if(!controls.isLocked) return; if(mainMenu.style.display!=='none'||overlay.style.display!=='none') return; keys.mouse=true; shoot(); });
-    document.addEventListener('mouseup', (e)=>{ if(e.button===0) keys.mouse=false; });
-
-    // ====== AUDIO HELPERS ======
-    function flashMuzzle(){ const c=document.createElement('canvas'); c.width=c.height=64; const g=c.getContext('2d'); const grad=g.createRadialGradient(32,32,0,32,32,32); grad.addColorStop(0,'rgba(255,240,150,0.95)'); grad.addColorStop(1,'rgba(255,120,0,0.0)'); g.fillStyle=grad; g.fillRect(0,0,64,64); muzzleEl.src=c.toDataURL(); muzzleEl.style.display='block'; setTimeout(()=>{ muzzleEl.style.display='none'; }, 40); }
-
-    const weapon = { magSize:30, ammoInMag:30, ammoReserve:120, damage:34, fireRate:10, lastShot:0, reloading:false, reloadTime:1.6, autoFire:true };
-    function updateAmmoUI(){ ammoCapEl.textContent=weapon.ammoInMag; ammoResEl.textContent=weapon.ammoReserve; reloadMsgEl.style.display = weapon.ammoInMag===0 && !weapon.reloading ? 'block':'none'; }
-
-    function tryReload(){ if(weapon.reloading) return; if(weapon.ammoInMag>=weapon.magSize) return; if(weapon.ammoReserve<=0) return; weapon.reloading=true; reloadMsgEl.style.display='none'; playReloadStart(); setTimeout(()=>{ const need=weapon.magSize-weapon.ammoInMag; const take=Math.min(need,weapon.ammoReserve); weapon.ammoInMag+=take; weapon.ammoReserve-=take; weapon.reloading=false; updateAmmoUI(); playReloadEnd(); }, weapon.reloadTime*1000); }
-
-    // ====== SHOOT / HIT ======
-    const raycaster = new THREE.Raycaster();
-    function shoot(){ const now=performance.now(); if(weapon.reloading) return; const interval=1000/weapon.fireRate; if(now-weapon.lastShot<interval) return; if(weapon.ammoInMag<=0){ tryReload(); return; } weapon.lastShot=now; weapon.ammoInMag--; updateAmmoUI(); flashMuzzle(); playGunShot(); ensureAudio();
-      // client-side hit test against remote players' bounding boxes
-      raycaster.setFromCamera(new THREE.Vector2(0,0), camera);
-      const hits = raycaster.intersectObjects([...playersGroup.children], true);
-      if(hits.length){ // find player root
-        let o=hits[0].object; while(o.parent && o.parent!==playersGroup) o=o.parent; const targetId = o.userData?.id; if(targetId){ const part = 'body'; send({type:'hit', code:room.code, from:profile.clientId, to:targetId, part}); }
+        const spriteMat = new THREE.SpriteMaterial({ map: tex, transparent:true });
+        const sprite = new THREE.Sprite(spriteMat);
+        sprite.position.set(x, 2.5, z);
+        sprite.scale.set(2,2,1);
+        captureGroup.add(sprite);
       }
-      send({type:'shoot', code:room.code});
+
+      addCapturePoint(0,0,'A');
+      addCapturePoint(worldSizeX/3,0,'B');
+      addCapturePoint(-worldSizeX/3,0,'C');
     }
 
-    // ====== SAFE SPAWN ======
-    function findFreeSpot(around, r, maxRadius=worldSizeX*0.5){ const stepR=world.cell*0.5, stepAng=Math.PI/6; for(let rad=0; rad<=maxRadius; rad+=stepR){ for(let a=0; a<Math.PI*2; a+=stepAng){ const x=around.x+Math.cos(a)*rad; const z=around.z+Math.sin(a)*rad; if(isFreeXZ(x,z,r)) return new THREE.Vector3(x,0,z);} } const ox=-worldSizeX/2, oz=-worldSizeZ/2; for(let i=0;i<400;i++){ const x=ox+Math.random()*worldSizeX; const z=oz+Math.random()*worldSizeZ; if(isFreeXZ(x,z,r)) return new THREE.Vector3(x,0,z);} return new THREE.Vector3(0,0,0); }
-
-    // ====== MODE FLOW ======
-    function startMatchClient(m){ // m: {mode, settings}
-      room.mode=m.mode; room.settings=m.settings; updateModeBadge();
-      // rebuild map
-      clearMap(); if(room.mode==='dm') buildMapDM(); else buildMapDOM();
-      // choose safe spawn and notify server
-      const corner = (room.mode==='dm') ? new THREE.Vector3(-worldSizeX/2 + 1.5*world.cell,0,-worldSizeZ/2 + 1.5*world.cell) : new THREE.Vector3(-worldSizeX*0.35,0,worldSizeZ*0.35);
-      const spawn = findFreeSpot(corner, world.playerRadius+0.1);
-      controls.getObject().position.set(spawn.x, 1.8, spawn.z);
-      // reset inputs and UI
-      resetInputState();
-      crosshair.hidden=false; helpEl.hidden=false; fpsEl.hidden=false; topHUD.hidden=false; overlay.style.display='none';
-      controls.lock(); ensureAudio();
-      local.ready=true;
-      // inform server ready + position
-      send({type:'spawn', code:room.code, pos:{x:spawn.x,y:1.8,z:spawn.z}, color:profile.color});
-    }
-
-    function applyState(m){ // m contains players, scores, timeLeft, points
-      timerEl.textContent = m.time;
-      if(room.mode==='dm'){ killsEl.textContent = String(m.kills?.[profile.clientId]||0); }
-      if(room.mode==='dom'){ scoreBlueEl.textContent=m.scoreBlue; scoreRedEl.textContent=m.scoreRed; // capture bars
-        if(m.points){ const fills=[capAFill, capBFill, capCFill]; for(let i=0;i<Math.min(3,m.points.length);i++){ const p=m.points[i]; const w=(p.progress+1)/2*160; fills[i].style.width=w+'px'; fills[i].style.background = p.progress>=0? 'linear-gradient(90deg,#38bdf8,#0ea5e9)':'linear-gradient(90deg,#f97316,#ef4444)'; } }
-      }
-      // players
-      const seen = new Set();
-      for(const it of m.players){ const id=it.id; if(id===profile.clientId) { continue; }
-        seen.add(id); let rec=remotes.get(id); if(!rec){ const mesh=createBlockCharacter(it.color||'#3b82f6'); mesh.userData.id=id; playersGroup.add(mesh); rec={mesh}; remotes.set(id, rec);} rec.mesh.position.set(it.pos.x, 0, it.pos.z); rec.mesh.visible = true;
-      }
-      // hide missing
-      for(const [id,rec] of remotes){ if(!seen.has(id)){ rec.mesh.visible=false; } }
-    }
-
-    function applyHit(m){ if(m.to===profile.clientId){ // you are hit
-        // play feedback
-        hitVignette.classList.add('active'); setTimeout(()=> hitVignette.classList.remove('active'), 120); playHitSound(0.9); // hp from server state updates separately
-      }
-    }
-
-    function onVictory(m){ alert(m.text||'경기 종료'); overlay.style.display='grid'; crosshair.hidden=true; helpEl.hidden=true; fpsEl.hidden=true; topHUD.hidden=true; controls.unlock(); }
-
-    // ====== MOVEMENT LOOP ======
-    let velY=0, canJump=false; let last = performance.now(); let fpsAcc=0,fpsCount=0;
-    function animate(){ requestAnimationFrame(animate); const now=performance.now(); const dt=Math.min(0.05,(now-last)/1000); last=now; fpsAcc+=(1/dt); fpsCount++; if(now%500<16) { fpsEl.textContent='FPS: '+(fpsAcc/Math.max(1,fpsCount)).toFixed(0); fpsAcc=0; fpsCount=0; }
-      if(controls.isLocked && local.ready){ // auto fire if pressed
-        if(keys.mouse && weapon.autoFire) shoot();
-        // movement calc
-        const up=new THREE.Vector3(0,1,0); const camDir=new THREE.Vector3(); camera.getWorldDirection(camDir);
-        const forward=new THREE.Vector3(camDir.x,0,camDir.z).normalize(); const right=new THREE.Vector3().crossVectors(forward, up).normalize();
-        const moveLocal=new THREE.Vector2(0,0); if(keys.w) moveLocal.y+=1; if(keys.s) moveLocal.y-=1; if(keys.a) moveLocal.x-=1; if(keys.d) moveLocal.x+=1; if(moveLocal.lengthSq()>1e-6) moveLocal.normalize();
-        const speed=(keys.shift?16:10) * (local.stun>0?0.35:1.0);
-        const disp=new THREE.Vector3(); disp.addScaledVector(forward, moveLocal.y*speed*dt); disp.addScaledVector(right, moveLocal.x*speed*dt); disp.add(local.kb.clone().multiplyScalar(dt));
-        // step resolve against AABB
-        const obj=controls.getObject(); const stepLen=0.25; let remaining=disp.length(); if(remaining>0){ const desiredDir=disp.clone().normalize(); while(remaining>1e-6){ const d=Math.min(stepLen,remaining); const tryNext=obj.position.clone().addScaledVector(desiredDir,d); // simple resolve
-            obj.position.copy(tryNext); remaining-=d; } }
-        // gravity (simple)
-        velY-=18*dt; obj.position.y += velY*dt; const groundY=1.8; if(obj.position.y<groundY){ velY=0; obj.position.y=groundY; canJump=true; }
-        // decay knockback/stun
-        local.kb.multiplyScalar(Math.max(0,1-6*dt)); if(local.kb.lengthSq()<1e-4) local.kb.set(0,0,0); if(local.stun>0) local.stun-=dt*1000;
-        // send position periodically (10Hz)
-        if(!animate._acc) animate._acc=0; animate._acc+=dt; if(animate._acc>0.1){ animate._acc=0; send({type:'move', code:room.code, pos:{x:obj.position.x,y:obj.position.y,z:obj.position.z}}); }
-      }
-      renderer.render(scene,camera);
-    }
-    animate();
-
-    // ====== STARTUP ======
-    applyProfileColor(); updateAmmoUI();
+    buildMapDOM();
   </script>
 </body>
 </html>
